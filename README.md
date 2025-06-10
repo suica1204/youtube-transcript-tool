@@ -1,14 +1,18 @@
-# YouTube Transcript Tool
+cat > README.md << 'EOF'
+# 🎥 YouTube Transcript Tool
 
-🎥 **Automated YouTube transcript generation using OpenAI Whisper**
+Automated YouTube transcript generation using OpenAI Whisper - One-command setup for macOS
 
-A command-line tool for automatically downloading YouTube videos and generating high-quality transcripts with one-command setup.
+## Features
 
-## 🚀 Quick Start
+- 🚀 **One-command installation** - Complete setup with a single command
+- 🎯 **Automatic language detection** - No need to specify language
+- 📝 **Multiple output formats** - Generates both TXT and VTT files
+- 🔄 **Error handling** - Robust download and transcription process
+- 🍎 **macOS optimized** - Designed specifically for macOS systems
 
+## Quick Start
+
+### One-command installation
 ```bash
-# One-command installation
 curl -fsSL https://raw.githubusercontent.com/suica1204/youtube-transcript-tool/main/install.sh | bash
-
-# Usage
-youtube_transcript "https://youtube.com/watch?v=VIDEO_ID"
