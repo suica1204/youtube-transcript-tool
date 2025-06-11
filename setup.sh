@@ -1,4 +1,3 @@
-cat > setup.sh << 'EOF'
 #!/bin/bash
 set -e
 
@@ -75,14 +74,21 @@ youtube_transcript() {
     
     # ダウンロード処理（エラーハンドリング強化）
     echo "📥 Downloading audio..."
+    # タイムスタンプを追加してファイル名を一意にする
+    local timestamp=$(date +"%Y%m%d_%H%M%S")
+    
+    # ダウンロード前のファイル一覧を取得
+    local files_before=$(ls raw-audio/*.wav 2>/dev/null || true)
+    
     if python3 -m yt_dlp \
         --no-check-certificate \
         --extract-audio \
         --audio-format wav \
         --audio-quality 0 \
-        --output "raw-audio/%(title)s.%(ext)s" \
+        --output "raw-audio/${timestamp}_%(title)s.%(ext)s" \
         --no-playlist \
         --ignore-errors \
+        --no-overwrites \
         "$url"; then
         echo "✅ Audio download completed"
     else
@@ -91,8 +97,9 @@ youtube_transcript() {
         if python3 -m yt_dlp \
             --extract-audio \
             --audio-format wav \
-            --output "raw-audio/%(title)s.%(ext)s" \
+            --output "raw-audio/${timestamp}_%(title)s.%(ext)s" \
             --no-playlist \
+            --no-overwrites \
             "$url"; then
             echo "✅ Audio download completed (alternative method)"
         else
@@ -101,31 +108,66 @@ youtube_transcript() {
         fi
     fi
     
-    # 最新のaudioファイルを取得
-    local audio_file=$(ls -t raw-audio/*.wav 2>/dev/null | head -1)
+    # ダウンロード後のファイル一覧を取得し、新しいファイルを特定
+    local files_after=$(ls raw-audio/*.wav 2>/dev/null || true)
+    local audio_file=""
+    
+    # 新しく追加されたファイルを特定
+    for file in $files_after; do
+        if ! echo "$files_before" | grep -q "$(basename "$file")"; then
+            audio_file="$file"
+            break
+        fi
+    done
+    
+    # 新しいファイルが見つからない場合は、タイムスタンプ付きファイルを検索
+    if [ -z "$audio_file" ]; then
+        audio_file=$(ls raw-audio/${timestamp}_*.wav 2>/dev/null | head -1)
+    fi
+    
+    # それでも見つからない場合は、最新のファイルを使用（フォールバック）
+    if [ -z "$audio_file" ]; then
+        audio_file=$(ls -t raw-audio/*.wav 2>/dev/null | head -1)
+    fi
+    
     if [ -z "$audio_file" ]; then
         echo "❌ No audio file found"
         return 1
     fi
     
     echo "🎤 Starting transcription with file: $(basename "$audio_file")"
+    echo "📂 Full path: $audio_file"
     
     # 言語を自動検出に変更（日本語コンテンツに対応）
+    # 音声ファイル名からベース名を取得（拡張子除去）
+    local base_name=$(basename "$audio_file" .wav)
     if python3 -m whisper "$audio_file" \
         --model medium \
         --output_dir transcripts \
         --output_format txt \
         --output_format vtt \
+        --output_format srt \
         --verbose False; then
         echo "✅ Transcription completed!"
         echo "📁 Files saved to: $base_dir"
         echo "📄 Transcript: $base_dir/transcripts/"
         
-        # 最新の転写ファイルを表示
-        local latest_txt=$(ls -t transcripts/*.txt 2>/dev/null | head -1)
-        if [ -n "$latest_txt" ]; then
-            echo "📝 Latest transcript: $(basename "$latest_txt")"
+        # 対応するtranscriptファイルを表示
+        local transcript_txt="transcripts/${base_name}.txt"
+        local transcript_vtt="transcripts/${base_name}.vtt"
+        
+        if [ -f "$transcript_txt" ]; then
+            echo "📝 Generated transcript: $(basename "$transcript_txt")"
+        elif [ -f "$transcript_vtt" ]; then
+            echo "📝 Generated transcript: $(basename "$transcript_vtt")"
+        else
+            echo "📝 Transcript files generated in: transcripts/"
         fi
+        
+        # 全体の統計情報も表示
+        local audio_count=$(ls -1 raw-audio/*.wav 2>/dev/null | wc -l | tr -d ' ')
+        local transcript_count=$(ls -1 transcripts/*.txt transcripts/*.vtt 2>/dev/null | wc -l | tr -d ' ')
+        echo "📊 Total files: ${audio_count} audio files, ${transcript_count} transcript files"
     else
         echo "❌ Transcription failed"
         return 1
@@ -145,4 +187,3 @@ echo -e "${YELLOW}💡 Tips:${NC}"
 echo "   - The function will automatically detect language"
 echo "   - Files are saved to ~/Documents/youtube-transcripts/"
 echo "   - Use Ctrl+C to stop the process if needed"
-EOF
